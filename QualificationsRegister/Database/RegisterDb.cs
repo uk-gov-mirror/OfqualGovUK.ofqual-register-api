@@ -30,6 +30,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             _logger.LogInformation($"Getting list of organisations: {search}");
 
             var result = _context.Organisations.Where(o =>
+            EF.Functions.Like(o.Name.Replace(" ", ""), nameSearchPattern) ||
             EF.Functions.Like(o.Acronym.Replace(" ", ""), nameSearchPattern) ||
             EF.Functions.Like(o.LegalName.Replace(" ", ""), nameSearchPattern));
 
