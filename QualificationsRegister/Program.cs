@@ -12,20 +12,29 @@ using Ofqual.Common.RegisterAPI.UseCase.Qualifications;
 using Ofqual.Common.RegisterFrontend.RegisterAPI;
 using Refit;
 using Ofqual.Common.RegisterAPI.UseCase.RecognitionScopes;
+using Microsoft.Extensions.Configuration;
+using System.Drawing.Text;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults()
-    .ConfigureServices(services =>
+    .ConfigureAppConfiguration((context, config) =>
+    {
+        config.AddJsonFile("local.settings.json", optional: true, reloadOnChange: true);
+        config.AddEnvironmentVariables();
+    })
+    .ConfigureServices((context, services) =>
     {
         services.AddApplicationInsightsTelemetryWorkerService();
         services.ConfigureFunctionsApplicationInsights();
 
         RegisterUseCases(services);
 
+        var connString = GetConfigurationValue(context, "MDDBConnString");
+
         services.AddDbContext<RegisterDbContext>(
             options =>
             {
-                SqlServerDbContextOptionsExtensions.UseSqlServer(options, Environment.GetEnvironmentVariable("MDDBConnString"));
+                options.UseSqlServer(connString);
             });
 
         services.AddScoped<IRegisterDb, RegisterDb>();
@@ -33,15 +42,14 @@ var host = new HostBuilder()
         services.AddHttpClient();
         services.AddHttpClient("APIMgmt", client =>
         {
-            client.BaseAddress = new Uri(Environment.GetEnvironmentVariable("APIMgmtURL")!);
+            client.BaseAddress = new Uri(GetConfigurationValue(context, "APIMgmtURL")!);
         });
 
         services.AddRefitClient<IRefDataAPIClient>().ConfigureHttpClient(httpClient =>
         {
-            httpClient.BaseAddress = new Uri(Environment.GetEnvironmentVariable("RefDataAPIUrl")!);
+            httpClient.BaseAddress = new Uri(GetConfigurationValue(context, "RefDataAPIUrl")!);
         });
     })
-
     .Build();
 
 
@@ -57,3 +65,9 @@ static void RegisterUseCases(IServiceCollection services)
 
     services.AddScoped<IGetScopesByOrganisationNumberUseCase, GetScopesByOrganisationNumberUseCase>();
 }
+
+
+static string GetConfigurationValue(HostBuilderContext context, string key) =>
+        context.Configuration?.GetValue<string>(key) ??
+        Environment.GetEnvironmentVariable(key)!;    
+

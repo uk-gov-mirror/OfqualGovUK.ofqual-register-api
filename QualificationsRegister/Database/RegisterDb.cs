@@ -24,19 +24,30 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
         }
 
         public DbListResponse<DbOrganisation> GetOrganisationsList(int page, int? limit, string search)
-        {
+        {            
             var nameSearchPattern = $"%{search?.Replace(" ", "")}%";
+
+            //should be called is possibly a recognition number,
+            //this is a quick and dirty check to see if the search string should be construed as a recognition number
+            //it will be used if the search pattern somewhat resembles an RN before we check on the recongnition number field in the database
+            //this is to stop unrelated RN results showing up when we are trying to search on names with digits in their title, e.g. 1st for quals.
+            var isRecognitionNumber = int.TryParse(search?.ToLower().Trim().Replace("rn","") , out var value) && value > 99;
 
             _logger.LogInformation($"Getting list of organisations: {search}");
 
             var result = _context.Organisations.Where(o =>
+            EF.Functions.Like(o.Name.Replace(" ", ""), nameSearchPattern) ||
             EF.Functions.Like(o.Acronym.Replace(" ", ""), nameSearchPattern) ||
-            EF.Functions.Like(o.LegalName.Replace(" ", ""), nameSearchPattern));
+            EF.Functions.Like(o.LegalName.Replace(" ", ""), nameSearchPattern) ||
+            (isRecognitionNumber && EF.Functions.Like(o.RecognitionNumber.Replace(" ",""), nameSearchPattern)));
 
             int count = result.Count();
-            var organisations = result.OrderBy(o => o.Name)
+            var organisations = result
+               .OrderBy(o => o.Acronym)
+               .ThenBy(o => o.Name)
                .ThenBy(o => o.LegalName)
-               .ThenBy(o => o.Acronym)
+               .ThenBy(o => o.RecognitionNumber)            
+
                .Skip(page * (limit ?? 1));
 
             organisations = limit != null ? organisations.Take(limit.Value) : organisations;
@@ -44,7 +55,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             return new DbListResponse<DbOrganisation>
             {
                 Count = count,
-                Results = organisations.ToList()
+                Results = [.. organisations]
             };
         }
 
@@ -56,7 +67,6 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
 
             return organisation;
         }
-
 
         #region Qualifications Private
 
@@ -329,7 +339,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             return new DbListResponse<DbQualificationPublic>
             {
                 Count = count,
-                Results = list.ToList()
+                Results = [.. list]
             };
         }
 

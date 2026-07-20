@@ -7,11 +7,22 @@ trigger:
 - main
 - releases/*
 
+schedules:
+- cron: 0 22 * * *
+  displayName: "Nightly test run"
+  branches:
+    include:
+      - master
+
 variables:  
-  - group: Register-API-Dev-Variables  
+  - group: Register-API-Dev-Variables 
+  
   # Agent VM image name  
   - name: vmImageName    
-    value: 'windows-2019'  
+    value: 'windows-latest'  
+  #.NET Core SDK version  
+  - name: dotnetVersion    
+    value: '8.x'
   # Working Directory  
   - name: workingDirectory    
     value: 'directory'
@@ -22,15 +33,46 @@ stages:
   displayName: "Run Static Analysis"  
   condition: always()  
   jobs:
+      # Audit job: This job audits dependencies for vulnerabilities.
+    - job: Audit
+      displayName: 'Audit Dependencies'
+      # ❌ Skip during scheduled builds
+      condition: ne(variables['Build.Reason'], 'Schedule')
+      pool:
+        vmImage: ubuntu-latest
+      steps:
+        - task: DotNetCoreCLI@2
+          inputs:
+            command: 'restore'
+            projects: '**/*.csproj'
+          displayName: 'Restore Nuget Packages'
+
+        - task: Bash@3
+          displayName: Check NuGet vulnerabilities
+          inputs:
+            targetType: 'inline'
+            script: |
+              dotnet list package --vulnerable --include-transitive 2>&1 | tee build.log
+              echo "Analyse dotnet list package command log output..."
+              if grep -q -i "critical\|high" build.log; then
+                  echo "Must fix security vulnerabilities found on the log output"
+                  exit 1
+              else
+                  echo "No critical or high severity vulnerabilities found."
+                  exit 0
+              fi
+
     - job: Snyk
       displayName: "Snyk Analysis"
+      # ✅ Always run (including schedule)
+      condition: always()
       steps:
       # Step 1: Set up .NET SDK
       - task: UseDotNet@2
-        displayName: 'Use .NET 8.0'
+        displayName: 'Install .NET $(dotnetVersion)'
         inputs:
           packageType: 'sdk'
-          version: '8.0.x'
+          version: '$(dotnetVersion)'
       # Step 2: Restore NuGet packages to ensure all dependencies are installed
       - task: DotNetCoreCLI@2
         displayName: 'Restore task'
@@ -72,35 +114,11 @@ stages:
           failOnIssues: false
           additionalArguments: '--all-projects'
 
-    # Audit job: This job audits dependencies for vulnerabilities.
-    - job: Audit
-      displayName: 'Audit Dependencies'
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-        - task: DotNetCoreCLI@2
-          inputs:
-            command: 'restore'
-            projects: '**/*.csproj'
-          displayName: 'Restore Nuget Packages'
-
-        - task: Bash@3
-          displayName: Check NuGet vulnerabilities
-          inputs:
-            targetType: 'inline'
-            script: |
-              dotnet list package --vulnerable --include-transitive 2>&1 | tee build.log
-              echo "Analyse dotnet list package command log output..."
-              if grep -q -i "critical\|high" build.log; then
-                  echo "Must fix security vulnerabilities found on the log output"
-                  exit 1
-              else
-                  echo "No critical or high severity vulnerabilities found."
-                  exit 0
-              fi
 # This stage runs the test suite using NUnit using the DotNetCoreCLI task. 
 - stage: RunTests
   displayName: "Run Tests"
+    # ❌ Skip entirely for scheduled builds
+  condition: ne(variables['Build.Reason'], 'Schedule')
   jobs:
     # Test job: This job runs the test suite using NUnit.
     - job: UnitTests
@@ -111,8 +129,9 @@ stages:
       steps:
         # Install .NET Core SDK
         - task: UseDotNet@2
+          displayName: 'Install .NET $(dotnetVersion)'
           inputs:
-            version: '8.x'
+            version: '$(dotnetVersion)'
         # Run NUnit tests
         - task: DotNetCoreCLI@2
           displayName: 'NUnit Tests'
@@ -122,6 +141,8 @@ stages:
 # Build stage: This stage compiles the .NET project, archives the build output, and publishes the artifact.
 - stage: BuildAndPackage
   dependsOn: RunTests
+  # ❌ Skip entirely for scheduled builds
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'Schedule'))
   displayName: "Build and package"
   jobs:
     - job: Build
@@ -131,8 +152,9 @@ stages:
       steps:
         # Install .NET Core SDK
         - task: UseDotNet@2
+          displayName: 'Install .NET $(dotnetVersion)'
           inputs:
-            version: '8.x'
+            version: '$(dotnetVersion)'
 
         # Restore NuGet packages using a specific Azure Artifacts feed.
         - task: DotNetCoreCLI@2
