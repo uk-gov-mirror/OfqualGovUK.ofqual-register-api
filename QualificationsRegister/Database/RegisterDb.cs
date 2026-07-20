@@ -26,6 +26,8 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
         public DbListResponse<DbOrganisation> GetOrganisationsList(int page, int? limit, string search)
         {            
             var nameSearchPattern = $"%{search?.Replace(" ", "")}%";
+            var isRecognitionNumber = search?.Length >= 3
+                && int.TryParse(search?.ToLower().Trim().Replace("rn","") , out _) ;
 
             _logger.LogInformation($"Getting list of organisations: {search}");
 
@@ -33,7 +35,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             EF.Functions.Like(o.Name.Replace(" ", ""), nameSearchPattern) ||
             EF.Functions.Like(o.Acronym.Replace(" ", ""), nameSearchPattern) ||
             EF.Functions.Like(o.LegalName.Replace(" ", ""), nameSearchPattern) ||
-            (nameSearchPattern.Any(char.IsDigit) && EF.Functions.Like(o.RecognitionNumber.Replace(" ",""), nameSearchPattern)));
+            (isRecognitionNumber && EF.Functions.Like(o.RecognitionNumber.Replace(" ",""), nameSearchPattern)));
 
             int count = result.Count();
             var organisations = result
