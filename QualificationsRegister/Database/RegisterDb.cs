@@ -26,8 +26,12 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
         public DbListResponse<DbOrganisation> GetOrganisationsList(int page, int? limit, string search)
         {            
             var nameSearchPattern = $"%{search?.Replace(" ", "")}%";
-            var isRecognitionNumber = search?.Length >= 3
-                && int.TryParse(search?.ToLower().Trim().Replace("rn","") , out _) ;
+
+            //should be called is possibly a recognition number,
+            //this is a quick and dirty check to see if the search string should be construed as a recognition number
+            //it will be used if the search pattern somewhat resembles an RN before we check on the recongnition number field in the database
+            //this is to stop unrelated RN results showing up when we are trying to search on names with digits in their title, e.g. 1st for quals.
+            var isRecognitionNumber = int.TryParse(search?.ToLower().Trim().Replace("rn","") , out var value) && value > 99;
 
             _logger.LogInformation($"Getting list of organisations: {search}");
 
