@@ -24,7 +24,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
         }
 
         public DbListResponse<DbOrganisation> GetOrganisationsList(int page, int? limit, string search)
-        {
+        {            
             var nameSearchPattern = $"%{search?.Replace(" ", "")}%";
 
             _logger.LogInformation($"Getting list of organisations: {search}");
@@ -32,12 +32,16 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             var result = _context.Organisations.Where(o =>
             EF.Functions.Like(o.Name.Replace(" ", ""), nameSearchPattern) ||
             EF.Functions.Like(o.Acronym.Replace(" ", ""), nameSearchPattern) ||
-            EF.Functions.Like(o.LegalName.Replace(" ", ""), nameSearchPattern));
+            EF.Functions.Like(o.LegalName.Replace(" ", ""), nameSearchPattern) ||
+            (nameSearchPattern.Any(char.IsDigit) && EF.Functions.Like(o.RecognitionNumber.Replace(" ",""), nameSearchPattern)));
 
             int count = result.Count();
-            var organisations = result.OrderBy(o => o.Name)
+            var organisations = result
+               .OrderBy(o => o.Acronym)
+               .ThenBy(o => o.Name)
                .ThenBy(o => o.LegalName)
-               .ThenBy(o => o.Acronym)
+               .ThenBy(o => o.RecognitionNumber)            
+
                .Skip(page * (limit ?? 1));
 
             organisations = limit != null ? organisations.Take(limit.Value) : organisations;
@@ -45,7 +49,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             return new DbListResponse<DbOrganisation>
             {
                 Count = count,
-                Results = organisations.ToList()
+                Results = [.. organisations]
             };
         }
 
@@ -57,7 +61,6 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
 
             return organisation;
         }
-
 
         #region Qualifications Private
 
@@ -330,7 +333,7 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
             return new DbListResponse<DbQualificationPublic>
             {
                 Count = count,
-                Results = list.ToList()
+                Results = [.. list]
             };
         }
 
