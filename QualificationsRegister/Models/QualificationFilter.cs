@@ -8,6 +8,7 @@ namespace Ofqual.Common.RegisterAPI.Models
         public string[]? AssessmentMethods { get; set; }
         public string[]? GradingTypes { get; set; }
         public string[]? AwardingOrganisations { get; set; }
+        public string[]? AORecognitionNumbers { get; set; }
         public string[]? Availability { get; set; }
         public string[]? QualificationTypes { get; set; }
         public string[]? QualificationLevels { get; set; }

@@ -106,6 +106,21 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
                     filteredList = filteredList.Where(q => query.AwardingOrganisations.Contains(q.OrganisationName));
                 }
 
+                if (query.AORecognitionNumbers != null)
+                {
+                    //  There should be a cleaner way to do this, but due to EF incompatibilities with some more apppropriate
+                    //  LINQ methods (e.g. Contains()), we will have to approach it this way. This method will allow for case
+                    //  insensitivity and omission of the RN prefix altogether.
+                    var rnNumbers = query.AORecognitionNumbers
+                        .Select(rn => rn.TrimStart('r', 'R', 'n', 'N'))
+                        .AsQueryable();
+
+                    filteredList = filteredList.Where(q =>
+                        rnNumbers.Any(n => EF.Functions.Collate(
+                            q.OrganisationRecognitionNumber,
+                            "SQL_Latin1_General_CP1_CI_AS") == "RN" + n));
+                }
+
                 if (query.Availability != null)
                 {
                     filteredList = filteredList.Where(q => query.Availability.Contains(q.Status));
@@ -257,6 +272,18 @@ namespace Ofqual.Common.RegisterAPI.Services.Database
                 if (query.AwardingOrganisations != null)
                 {
                     filteredList = filteredList.Where(q => query.AwardingOrganisations.Contains(q.OrganisationName));
+                }
+
+                if (query.AORecognitionNumbers != null)
+                {
+                    var rnNumbers = query.AORecognitionNumbers
+                        .Select(rn => rn.TrimStart('r', 'R', 'n', 'N'))
+                        .AsQueryable();
+
+                    filteredList = filteredList.Where(q =>
+                        rnNumbers.Any(n => EF.Functions.Collate(
+                            q.OrganisationRecognitionNumber,
+                            "SQL_Latin1_General_CP1_CI_AS") == "RN" + n));
                 }
 
                 if (query.Availability != null)
