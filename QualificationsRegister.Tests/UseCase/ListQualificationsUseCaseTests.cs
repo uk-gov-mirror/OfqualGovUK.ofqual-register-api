@@ -16,13 +16,15 @@ namespace Ofqual.Common.RegisterAPI.Tests.UseCase
         private Mock<IRegisterDb> _mockDB;
         private GetQualificationsListUseCase _classUnderTest;
         private Fixture _fixture;
+        private readonly int _pagingLimit = 8000;
 
         [SetUp]
         public void Setup()
         {
             _mockDB = new Mock<IRegisterDb>();
             _classUnderTest = new GetQualificationsListUseCase(new NullLoggerFactory(), _mockDB.Object);
-            _fixture = new Fixture();
+            _fixture = new Fixture();            
+            
         }
 
         #region Qualifications Private
@@ -52,8 +54,8 @@ namespace Ofqual.Common.RegisterAPI.Tests.UseCase
             var stubbedList = _fixture.Create<DbListResponse<DbQualification>>();
             _mockDB.Setup(x => x.GetQualificationsList(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<QualificationFilter>(), It.IsAny<string>())).Returns(stubbedList);
 
-            Func<ListResponse<Qualification>> testDelegate = () => _classUnderTest.ListQualifications(1, 101, It.IsAny<QualificationFilter>(), It.IsAny<string>())!;
-            testDelegate.Should().Throw<BadRequestException>().WithMessage($"Invalid parameter values. Page should be > 0 and Limit should be > 0 and <= 100");
+            Func<ListResponse<Qualification>> testDelegate = () => _classUnderTest.ListQualifications(1, 1+_pagingLimit, It.IsAny<QualificationFilter>(), It.IsAny<string>())!;
+            testDelegate.Should().Throw<BadRequestException>().WithMessage($"Invalid parameter values. Page should be > 0 and Limit should be > 0 and <= {_pagingLimit}");
         }
         #endregion
 
@@ -82,11 +84,13 @@ namespace Ofqual.Common.RegisterAPI.Tests.UseCase
         [Test]
         public void ListOfQualificationsPublicWithInvalidPagingParametersReturnsBadRequest()
         {
+            
+
             var stubbedList = _fixture.Create<DbListResponse<DbQualificationPublic>>();
             _mockDB.Setup(x => x.GetQualificationsPublicList(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<QualificationFilter>(), It.IsAny<string>())).Returns(stubbedList);
 
-            Func<ListResponse<QualificationPublic>> testDelegate = () => _classUnderTest.ListQualificationsPublic(1, 101, It.IsAny<QualificationFilter>(), It.IsAny<string>())!;
-            testDelegate.Should().Throw<BadRequestException>().WithMessage($"Invalid parameter values. Page should be > 0 and Limit should be > 0 and <= 100");
+            Func<ListResponse<QualificationPublic>> testDelegate = () => _classUnderTest.ListQualificationsPublic(1, 1+_pagingLimit , It.IsAny<QualificationFilter>(), It.IsAny<string>())!;
+            testDelegate.Should().Throw<BadRequestException>().WithMessage($"Invalid parameter values. Page should be > 0 and Limit should be > 0 and <= {_pagingLimit}");
         }
 
         #endregion
